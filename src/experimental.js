@@ -1,28 +1,45 @@
 import { types } from '@babel/core';
 
-export const visitors = {
-  TSEnumDeclaration(path) {
-    if (!path.node.const) {
-      path.skip();
+export const visitors = checkHoisting => ({
+  TSEnumDeclaration(enumPath) {
+    if (!enumPath.node.const) {
+      enumPath.skip();
       return;
     }
-    const members = path.get('members');
+    const members = enumPath.get('members');
     let numberVal = 0;
+    this.shouldDoubleCheck = true;
+    const name = enumPath.node.id.name;
+
+    /** Add new node hoisted */
+    const newNode = types.variableDeclaration('var', [
+      types.variableDeclarator(
+        types.identifier(name),
+        types.objectExpression(
+          [],
+        ),
+      ),
+    ]);
+    const parentWithBody = enumPath.findParent(
+      (p) => p.node !== undefined && p.node.body !== undefined,
+    );
+    const [newPath] = parentWithBody.unshiftContainer('body', newNode);
+    const key = getName(name, newPath.scope);
+
+    /** Save enum to state */
     for (const member of members) {
       const val = member.node.initializer;
-      const key = path.node.id.name;
       const property = member.node.id.name;
       if (!this.enums[key]) {
         this.enums[key] = {};
       }
-      this.shouldDoubleCheck = true;
 
       if (types.isStringLiteral(val)) {
         this.enums[key][property] = val;
       } else if (types.isNumericLiteral(val)) {
         let actualVal = val.value;
         numberVal = actualVal + 1;
-        this.enums[key][property] = {type: val.type, value: val.value};
+        this.enums[key][property] = { type: val.type, value: val.value };
       } else {
         // No initializer
         if (val !== undefined) {
@@ -31,44 +48,47 @@ export const visitors = {
         this.enums[key][property] = types.numericLiteral(numberVal++);
       }
     }
-
-    const newNode = types.variableDeclaration('var', [
-        types.variableDeclarator(
-          types.identifier(path.node.id.name),
-          types.objectExpression(
-            [],
-          ),
-        ),
-      ]);
-    const parentWithBody = path.findParent(
-      (p) => p.node !== undefined && p.node.body !== undefined
-    );
-    const [newPath] = parentWithBody.unshiftContainer("body", newNode);
     newPath.scope.registerDeclaration(newPath);
-    this.toRemove.push(newPath, path);
+    this.toRemove.push(newPath, enumPath);
   },
-  MemberExpression(path) {
-    const name = path.node.object.name;
+  MemberExpression(mePath) {
+    const name = getName(mePath.node.object.name, mePath.scope);
     if (!(name in this.enums)) {
-      this.toDoubleCheck.push(path);
-      path.skip();
+      if (checkHoisting) {
+        this.toDoubleCheck.push(mePath);
+      }
+      mePath.skip();
       return;
     }
-    replace(path, this.enums);
+    replace(mePath, this.enums);
   },
+});
+/**
+ * @param {string} name
+ * @param {import('@babel/traverse').Scope} scope*/
+export const getName = (name, scope) => {
+  if (!scope.hasBinding(name) && !scope.hasGlobal(name)) {
+    console.log(
+      'enum exists but is not in scope',
+    );
+    return;
+  }
+  name = scope.uid + name;
+  return name;
 };
 
-export const replace = (path, enums) => {
-  const name = path.node.object.name;
-  if (!enums[name][path.node.property.name]) {
-    throw path.buildCodeFrameError(
+export const replace = (mePath, enums, name) => {
+  if (!name) {
+    name = getName(mePath.node.object.name, mePath.scope);
+  }
+  if (!enums[name]) {
+    console.log('no such name ', name, 'in enums', this.enums);
+  } else if (!enums[name][mePath.node.property.name]) {
+    throw mePath.buildCodeFrameError(
       'weird cuz no property like dat man in ', enums,
-      'cuz you wanted', path.node.property.name,
-    );
-  } else if (!path.scope.hasBinding(name) && !(path.global && path.hasGlobal(name))) {
-    console.log(
-      'enum exists but is not in scope'
+      'cuz you wanted', mePath.node.property.name,
     );
   }
-  path.replaceWith(enums[name][path.node.property.name]);
-}
+  const newNode = enums[name][mePath.node.property.name];
+  mePath.replaceWith(newNode);
+};

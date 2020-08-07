@@ -1,7 +1,14 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`does not work when enum declaration after use with wrong config 1`] = `"console.log(Direction.Left);"`;
+
+exports[`error if not in scope 1`] = `
+"{}
+console.log(Direction.Left);"
+`;
+
 exports[`works unstably 1`] = `"console.log(0);"`;
 
 exports[`works unstably starting with initializer 1`] = `"console.log(1);"`;
 
-exports[`works unstably when enum declaration after use 1`] = `"console.log(0);"`;
+exports[`works unstably when enum declaration after use with right config 1`] = `"console.log(0);"`;

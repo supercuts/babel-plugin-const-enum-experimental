@@ -2,20 +2,21 @@ import { declare } from '@babel/helper-plugin-utils';
 import syntaxTypeScript from '@babel/plugin-syntax-typescript';
 import removeConst from './remove-const';
 import constObject from './const-object';
-import { visitors as experimental, replace } from './experimental';
+import { visitors as experimental, replace, getName } from './experimental';
 
-export default declare((api, { transform = 'removeConst' }) => {
+export default declare((api, { transform = 'removeConst', experimental: { checkHoisting } = { checkHoisting: false } }) => {
   api.assertVersion(7);
+  const isExperimental = transform === 'experimental';
 
   let visitor;
   if (transform === 'removeConst') {
     visitor = removeConst;
   } else if (transform === 'constObject') {
     visitor = constObject;
-  } else if (transform === 'experimental') {
-    visitor = experimental;
+  } else if (isExperimental) {
+    visitor = experimental(checkHoisting);
   } else {
-    throw Error('transform option must be removeConst|constObject');
+    throw Error('transform option must be removeConst|constObject|experimental');
   }
 
   return {
@@ -23,26 +24,28 @@ export default declare((api, { transform = 'removeConst' }) => {
     inherits: syntaxTypeScript,
     visitor,
     pre() {
-      this.enums = {};
-      this.toRemove = [];
-      this.toDoubleCheck = [];
-      this.shouldDoubleCheck = false;
+      if (isExperimental) {
+        this.enums = {};
+        this.toRemove = [];
+        this.toDoubleCheck = [];
+      }
     },
     post() {
-      this.toRemove.forEach(path => {
-        path.remove();
-      });
-      console.log('post', this.enums);
-      if(this.shouldDoubleCheck) {
-        for(const doubleCheck of this.toDoubleCheck) {
-          if(doubleCheck.node.object.name in this.enums) {
-            console.log('replacing during double check');
-            replace(doubleCheck, this.enums);
+      if (isExperimental) {
+        this.toRemove.forEach(path => {
+          path.remove();
+        });
+        if (this.shouldDoubleCheck && checkHoisting) {
+          for (const doubleCheck of this.toDoubleCheck) {
+            console.log('double checking', doubleCheck.node.property.name);
+            if (getName(doubleCheck.node.object.name, doubleCheck.scope) in this.enums) {
+            }
           }
+        } else if (!this.shouldDoubleCheck) {
+          /* No enums were ever saved*/
+          console.error('this plugin is useless for you!');
         }
-      } else if(Object.keys(this.enums).length === 0) {
-        console.error("this plugin is useless for you!");
       }
-    }
+    },
   };
 });
