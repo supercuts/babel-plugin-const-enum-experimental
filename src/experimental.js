@@ -1,4 +1,5 @@
 import { types } from '@babel/core';
+import generate from '@babel/generator';
 
 export const visitors = checkHoisting => ({
   TSEnumDeclaration(enumPath) {
@@ -52,7 +53,7 @@ export const visitors = checkHoisting => ({
     this.toRemove.push(newPath, enumPath);
   },
   MemberExpression(mePath) {
-    const name = getName(mePath.node.object.name, mePath.scope);
+    const name = getName(getObjectName(mePath.node), mePath.scope);
     if (!(name in this.enums)) {
       if (checkHoisting) {
         this.toDoubleCheck.push(mePath);
@@ -76,10 +77,17 @@ export const getName = (name, scope) => {
   name = scope.uid + name;
   return name;
 };
+export const getObjectName = (node) => {
+  if(node.expression) {
+    return node.expression.name;
+  } else {
+    return node.object.name;
+  }
+}
 
 export const replace = (mePath, enums, name) => {
   if (!name) {
-    name = getName(mePath.node.object.name, mePath.scope);
+    name = getName(getObjectName(mePath.node), mePath.scope);
   }
   if (!enums[name]) {
     console.log('no such name ', name, 'in enums', this.enums);
