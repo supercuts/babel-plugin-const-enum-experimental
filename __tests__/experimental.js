@@ -11,7 +11,6 @@ console.log(Direction.Left)`;
 
   const { code: output } = await transformAsync(input, options);
   expect(output).toMatchSnapshot();
-
 });
 
 it('works unstably starting with initializer', async () => {
@@ -19,17 +18,26 @@ it('works unstably starting with initializer', async () => {
 console.log(Direction.Left)`;
 
   const { code: output } = await transformAsync(input, options);
+  console.log(output)
+  expect(output).toMatchSnapshot();
+});
+
+it('works unstably when enum declaration after use', async () => {
+  const input = `console.log(Direction.Left)
+const enum Direction { Left, Right, Down, Up }`;
+
+  const { code: output } = await transformAsync(input, options);
   expect(output).toMatchSnapshot();
 
 });
 
-it('is empty if not in scope', async () => {
+it('error if not in scope', async () => {
   const input = `{const enum Direction { Left, Right, Down, Up }}
 console.log(Direction.Left)`;
   try {
     const { code: output } = await transformAsync(input, options);
-    expect(1 === 2);
+    expect(1 === 2).toBeTruthy();
   } catch(e) {
-    expect(1 === 1);
+    expect(1 === 1).toBeTruthy();
   }
 });

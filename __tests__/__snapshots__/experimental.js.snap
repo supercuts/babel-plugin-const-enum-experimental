@@ -2,4 +2,6 @@
 
 exports[`works unstably 1`] = `"console.log(0);"`;
 
-exports[`works unstably starting with initializer 1`] = `"console.log(0);"`;
+exports[`works unstably starting with initializer 1`] = `"console.log(1);"`;
+
+exports[`works unstably when enum declaration after use 1`] = `"console.log(0);"`;
